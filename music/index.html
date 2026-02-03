@@ -7,23 +7,9 @@
   <style>
     html,body{margin:0;height:100%;background:#05060a;overflow:hidden}
     canvas{display:block;width:100vw;height:100vh}
-    .hud{
-      position:fixed;left:12px;top:12px;z-index:10;
-      color:#fff;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:rgba(0,0,0,.35);padding:10px 12px;border-radius:10px;
-      backdrop-filter: blur(6px);
-    }
-    .hud b{display:block;margin-bottom:6px}
-    .tip{opacity:.85;font-size:12px;margin-top:6px}
   </style>
 </head>
 <body>
-  <div class="hud">
-    <b>烟花秀</b>
-    点击一次发射一次：从地面飞到空中炸开（首次点击自动开始音乐循环）
-    <div class="tip" id="status">音乐：等待首次点击</div>
-  </div>
-
   <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
   <canvas id="c"></canvas>
 
@@ -45,16 +31,13 @@
 
   // 音乐：首次点击触发
   const bgm = document.getElementById('bgm');
-  const statusEl = document.getElementById('status');
   let musicStarted = false;
   async function startMusicIfNeeded(){
     if (musicStarted) return;
     try {
       await bgm.play();
       musicStarted = true;
-      statusEl.textContent = '音乐：播放中（循环）';
     } catch (e){
-      statusEl.textContent = '音乐：被拦截（再点一次）';
     }
   }
 
