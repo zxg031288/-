@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>新年快乐</title>
+  <style>
+    html,body{margin:0;height:100%;background:#05060a;overflow:hidden}
+    canvas{display:block;width:100vw;height:100vh}
+  </style>
+</head>
+<body>
+  <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
+  <canvas id="c"></canvas>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  function resize(){
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+    canvas.style.width = innerWidth + 'px';
+    canvas.style.height = innerHeight + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // 音乐：首次点击触发
+  const bgm = document.getElementById('bgm');
+  let musicStarted = false;
+  async function startMusicIfNeeded(){
+    if (musicStarted) return;
+    try {
+      await bgm.play();
+      musicStarted = true;
+    } catch (e){
+    }
+  }
+
+  // 物理参数
+  const gravity = 0.12;
+  const rockets = [];
+  const sparks = [];
+
+  const rand = (a,b)=>a+Math.random()*(b-a);
+  const hsl = (h,s,l,a=1)=>`hsla(${h},${s}%,${l}%,${a})`;
+
+  function launchRocket(targetX, targetY){
+    // 从底部发射，朝目标附近飞（但不是直线瞬移）
+    const x0 = targetX;
+    const y0 = innerHeight + 10;
+    const apexY = Math.max(60, Math.min(innerHeight*0.55, targetY)); // 爆点高度受点击位置影响
+    const hue = rand(0,360);
+
+    // 初速度：让它向上飞，略带横向偏移
+    const vy0 = -rand(10.5, 13.5);
+    const vx0 = rand(-1.2, 1.2);
+
+    rockets.push({
+      x: x0, y: y0,
+      vx: vx0, vy: vy0,
+      hue,
+      apexY,
+      trail: [],
+      exploded: false
+    });
+  }
+
+  function explode(x, y, hue){
+    const count = Math.floor(rand(70, 120));
+    for(let i=0;i<count;i++){
+      const ang = Math.random()*Math.PI*2;
+      const sp = rand(1.5, 5.8);
+      sparks.push({
+        x, y,
+        vx: Math.cos(ang)*sp,
+        vy: Math.sin(ang)*sp,
+        life: 0,
+        ttl: rand(55, 95),
+        hue: hue + rand(-18, 18),
+        size: rand(1.1, 2.6)
+      });
+    }
+  }
+
+  function fadeBackground(){
+    ctx.fillStyle = 'rgba(5,6,10,0.18)'; // 拖影
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+  }
+
+  function step(){
+    fadeBackground();
+
+    // rockets：上升 + 顶点爆炸
+    for(let i=rockets.length-1;i>=0;i--){
+      const r = rockets[i];
+
+      // trail
+      r.trail.push({x:r.x, y:r.y});
+      if(r.trail.length > 14) r.trail.shift();
+
+      // move
+      r.x += r.vx;
+      r.y += r.vy;
+      r.vy += gravity * 0.25;
+
+      // draw trail
+      for(let t=0;t<r.trail.length;t++){
+        const p = r.trail[t];
+        const a = (t+1)/r.trail.length;
+        ctx.beginPath();
+        ctx.fillStyle = hsl(r.hue, 100, 70, 0.15 + 0.45*a);
+        ctx.arc(p.x, p.y, 1.0 + 1.2*a, 0, Math.PI*2);
+        ctx.fill();
+      }
+
+      // draw head
+      ctx.beginPath();
+      ctx.fillStyle = hsl(r.hue, 100, 75, 0.95);
+      ctx.arc(r.x, r.y, 2.3, 0, Math.PI*2);
+      ctx.fill();
+
+      // 到达顶点：y 小于 apexY 或者上升速度接近 0
+      if(!r.exploded && (r.y <= r.apexY || r.vy > -0.8)){
+        r.exploded = true;
+        explode(r.x, r.y, r.hue);rockets.splice(i,1);
+      }
+
+      // 飞出屏幕也回收
+      if(r.y < -50 || r.x < -50 || r.x > innerWidth+50){
+        rockets.splice(i,1);
+      }
+    }
+
+    // sparks：爆炸粒子
+    for(let i=sparks.length-1;i>=0;i--){
+      const p = sparks[i];
+      p.life += 1;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += gravity;
+      p.vx *= 0.985;
+      p.vy *= 0.985;
+
+      const t = 1 - p.life/p.ttl;
+      if(t <= 0){
+        sparks.splice(i,1);
+        continue;
+      }
+      ctx.beginPath();
+      ctx.fillStyle = hsl(p.hue, 100, 65, Math.max(0, t));
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  function onPointer(e){
+    startMusicIfNeeded();
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.clientX ?? (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY ?? (e.touches && e.touches[0].clientY);
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    // 点击一次就发射一次
+    launchRocket(x, y);
+  }
+
+  addEventListener('click', onPointer, {passive:true});
+  addEventListener('touchstart', (e)=>onPointer(e), {passive:true});
+})();
+</script>
+</body>
+</html>
